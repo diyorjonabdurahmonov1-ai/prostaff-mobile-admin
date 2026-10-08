@@ -12,15 +12,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ROLE_LABELS } from '@/lib/roles';
 
 const ALL_ROLES: Role[] = ['customer', 'worker', 'company', 'admin'];
-
-const ROLE_LABELS: Record<Role, string> = {
-  customer: 'Buyurtmachi',
-  worker: 'Ishchi',
-  company: 'Firma',
-  admin: 'Admin',
-};
 
 export default function UserDetailScreen() {
   const t = useTheme();

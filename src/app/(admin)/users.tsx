@@ -2,20 +2,32 @@ import { PhotoCircle } from '@/components/ui/photo';
 import { useTabContentInset } from '@/hooks/use-tab-content-inset';
 import { useTheme } from '@/hooks/use-theme';
 import { api } from '@/lib/api';
-import type { User } from '@/lib/types';
+import { isBanned, isOnline, ROLE_LABELS } from '@/lib/roles';
+import type { Role, User } from '@/lib/types';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
 import { Text, TextInput } from '@/components/text';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+/** Who to show. A person can hold several roles, so each filter asks "has". */
+type RoleFilter = 'all' | Role;
+const ROLE_FILTERS: { key: RoleFilter; label: string }[] = [
+  { key: 'all', label: 'Hammasi' },
+  { key: 'worker', label: 'Ishchilar' },
+  { key: 'company', label: 'Firmalar' },
+  { key: 'customer', label: 'Buyurtmachilar' },
+  { key: 'admin', label: 'Adminlar' },
+];
 
 export default function UsersScreen() {
   const t = useTheme();
@@ -25,6 +37,26 @@ export default function UsersScreen() {
   const [query, setQuery] = useState('');
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
+  const [role, setRole] = useState<RoleFilter>('all');
+  const [onlyOnline, setOnlyOnline] = useState(false);
+  const [onlyBanned, setOnlyBanned] = useState(false);
+
+  /**
+   * The search narrows by name or phone on the server; these narrow the
+   * result here. "Which workers are online", "who is banned" were questions
+   * the list could not answer without opening every account.
+   */
+  const shown = useMemo(
+    () =>
+      users.filter(
+        (u) =>
+          (role === 'all' || u.roles.includes(role)) &&
+          (!onlyOnline || isOnline(u)) &&
+          (!onlyBanned || isBanned(u)),
+      ),
+    [users, role, onlyOnline, onlyBanned],
+  );
+  const countFor = (r: RoleFilter) => (r === 'all' ? users.length : users.filter((u) => u.roles.includes(r)).length);
 
   const search = useCallback(async (q: string) => {
     setLoading(true);
@@ -56,7 +88,7 @@ export default function UsersScreen() {
         styles.row,
         { backgroundColor: pressed ? t.surfaceMuted : t.surface },
         index === 0 && styles.firstRow,
-        index === users.length - 1 && styles.lastRow,
+        index === shown.length - 1 && styles.lastRow,
       ]}
       onPress={() => router.push(`/(admin)/user/${item.id}` as any)}
     >
@@ -78,7 +110,13 @@ export default function UsersScreen() {
         <Text style={[styles.name, { color: t.text }]} numberOfLines={1}>
           {item.name || 'Ismsiz'}
         </Text>
-        <Text style={[styles.phone, { color: t.textMuted }]}>{item.phone}</Text>
+        <View style={styles.subRow}>
+          {item.worker_profile || item.company_profile ? (
+            <View style={[styles.dot, { backgroundColor: isOnline(item) ? t.success : t.textMuted }]} />
+          ) : null}
+          <Text style={[styles.phone, { color: t.textMuted }]}>{item.phone}</Text>
+          {isBanned(item) ? <Text style={[styles.banned, { color: t.danger }]}>· Bloklangan</Text> : null}
+        </View>
       </View>
 
       <View style={styles.badges}>
@@ -86,7 +124,7 @@ export default function UsersScreen() {
           const c = roleBadge(role);
           return (
             <View key={role} style={[styles.badge, { backgroundColor: c.bg }]}>
-              <Text style={[styles.badgeText, { color: c.fg }]}>{role}</Text>
+              <Text style={[styles.badgeText, { color: c.fg }]}>{ROLE_LABELS[role as Role] ?? role}</Text>
             </View>
           );
         })}
@@ -135,16 +173,51 @@ export default function UsersScreen() {
         </View>
       </View>
 
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chips}
+        style={styles.chipsScroll}
+      >
+        {ROLE_FILTERS.map((f) => {
+          const active = role === f.key;
+          return (
+            <Pressable
+              key={f.key}
+              onPress={() => setRole(f.key)}
+              style={[styles.chip, { backgroundColor: active ? t.primary : t.surfaceMuted }]}
+            >
+              <Text style={[styles.chipText, { color: active ? '#FFFFFF' : t.textMuted }]}>
+                {f.label} · {countFor(f.key)}
+              </Text>
+            </Pressable>
+          );
+        })}
+        <View style={[styles.chipDivider, { backgroundColor: t.borderLight }]} />
+        <Pressable
+          onPress={() => setOnlyOnline(!onlyOnline)}
+          style={[styles.chip, { backgroundColor: onlyOnline ? t.success : t.successSoft }]}
+        >
+          <Text style={[styles.chipText, { color: onlyOnline ? '#FFFFFF' : t.success }]}>Onlayn</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setOnlyBanned(!onlyBanned)}
+          style={[styles.chip, { backgroundColor: onlyBanned ? t.danger : t.dangerSoft }]}
+        >
+          <Text style={[styles.chipText, { color: onlyBanned ? '#FFFFFF' : t.danger }]}>Bloklangan</Text>
+        </Pressable>
+      </ScrollView>
+
       {loading && users.length === 0 ? (
         <ActivityIndicator style={{ marginTop: 48 }} color={t.primary} />
-      ) : users.length === 0 ? (
+      ) : shown.length === 0 ? (
         <View style={styles.emptyWrap}>
           <Ionicons name="people-outline" size={48} color={t.textMuted} />
           <Text style={[styles.emptyText, { color: t.textMuted }]}>Foydalanuvchilar topilmadi</Text>
         </View>
       ) : (
         <FlatList
-          data={users}
+          data={shown}
           keyExtractor={(u) => u.id}
           renderItem={renderItem}
           ItemSeparatorComponent={separator}
@@ -177,7 +250,15 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 17, fontWeight: '600' },
   rowContent: { flex: 1 },
   name: { fontSize: 17 },
-  phone: { fontSize: 13, marginTop: 1 },
+  phone: { fontSize: 13 },
+  subRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 1 },
+  dot: { width: 7, height: 7, borderRadius: 4 },
+  banned: { fontSize: 13, fontWeight: '600' },
+  chipsScroll: { flexGrow: 0 },
+  chips: { paddingHorizontal: 16, gap: 8, paddingBottom: 12, alignItems: 'center' },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14 },
+  chipText: { fontSize: 13, fontWeight: '500' },
+  chipDivider: { width: 1, height: 20 },
   badges: { flexDirection: 'row', gap: 4 },
   badge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5 },
   badgeText: { fontSize: 11, fontWeight: '600' },
