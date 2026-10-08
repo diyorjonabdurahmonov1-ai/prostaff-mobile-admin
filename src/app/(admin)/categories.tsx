@@ -19,6 +19,7 @@ import { useTabContentInset } from '@/hooks/use-tab-content-inset';
 import { useTheme } from '@/hooks/use-theme';
 import { api } from '@/lib/api';
 import type { Category } from '@/lib/types';
+import { BackLink } from '@/components/back-link';
 
 /**
  * The service list.
@@ -181,6 +182,7 @@ export default function CategoriesScreen() {
         {/* Adding is the reason the office opens this screen, so the button is
             at the top rather than under however many rows the list has grown
             to — the old form sat at the bottom and had to be scrolled to. */}
+        <BackLink />
         <View style={styles.titleRow}>
           <Text style={[styles.largeTitle, { color: t.text }]}>Kategoriyalar</Text>
           <Pressable

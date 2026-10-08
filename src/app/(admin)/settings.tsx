@@ -15,6 +15,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/store/auth';
 import { api } from '@/lib/api';
 import type { Settings } from '@/lib/types';
+import { BackLink } from '@/components/back-link';
 
 export default function SettingsScreen() {
   const t = useTheme();
@@ -90,6 +91,7 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: t.background }]} edges={['top']}>
       <KeyboardAwareScrollView contentContainerStyle={[styles.scroll, { paddingBottom: bottomInset }]}>
+        <BackLink />
         <Text style={[styles.largeTitle, { color: t.text }]}>Sozlamalar</Text>
 
         {/* Finance settings */}

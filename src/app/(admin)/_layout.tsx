@@ -6,24 +6,27 @@ type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
 const tabs: { name: string; title: string; icon: IoniconsName; iconFocused: IoniconsName }[] = [
   { name: 'index', title: 'Boshqaruv', icon: 'grid-outline', iconFocused: 'grid' },
-  { name: 'users', title: 'Foydalanuvchilar', icon: 'people-outline', iconFocused: 'people' },
-  { name: 'companies', title: 'Kompaniyalar', icon: 'business-outline', iconFocused: 'business' },
+  // Short labels: five tabs at phone width leave about 75pt each, and the
+  // full words were cut to "Foydal…".
+  { name: 'users', title: 'Odamlar', icon: 'people-outline', iconFocused: 'people' },
+  { name: 'companies', title: 'Firmalar', icon: 'business-outline', iconFocused: 'business' },
   { name: 'orders', title: 'Buyurtmalar', icon: 'receipt-outline', iconFocused: 'receipt' },
-  // The service list every order and every provider is filed under. It sits next
-  // to the operational tabs rather than in Sozlamalar because editing it changes
-  // what customers can order today, not how the platform is configured.
-  { name: 'categories', title: 'Kategoriyalar', icon: 'apps-outline', iconFocused: 'apps' },
-  // Tariffs earn their own tab: they are what firms pay, and the history of who
-  // paid is the office's revenue ledger — neither belongs buried in Sozlamalar.
-  { name: 'plans', title: 'Tariflar', icon: 'pricetags-outline', iconFocused: 'pricetags' },
-  { name: 'settings', title: 'Sozlamalar', icon: 'settings-outline', iconFocused: 'settings' },
+  // Categories, tariffs, settings, the map, broadcasts and the leaderboard:
+  // looked at daily rather than hourly, so they live one tap further in.
+  { name: 'more', title: 'Yana', icon: 'ellipsis-horizontal-circle-outline', iconFocused: 'ellipsis-horizontal-circle' },
 ];
+
+/** Screens reached from inside the app, not from the bar. */
+const HIDDEN = ['user/[id]', 'order/[id]', 'map', 'categories', 'plans', 'settings', 'broadcast', 'leaderboard'];
 
 export default function AdminLayout() {
   const t = useTheme();
 
   return (
     <Tabs
+      // Back from a screen opened inside a tab (an order, the map) returns to
+      // where it was opened from, not to the first tab.
+      backBehavior="history"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: t.primary,
@@ -46,10 +49,9 @@ export default function AdminLayout() {
           }}
         />
       ))}
-      <Tabs.Screen name="user/[id]" options={{ href: null }} />
-      {/* Opened from the dashboard rather than a tab of its own: the bar
-          already holds seven, and an eighth would not fit on a phone. */}
-      <Tabs.Screen name="map" options={{ href: null }} />
+      {HIDDEN.map((name) => (
+        <Tabs.Screen key={name} name={name} options={{ href: null }} />
+      ))}
     </Tabs>
   );
 }
