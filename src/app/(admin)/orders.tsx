@@ -16,7 +16,8 @@ import { useTabContentInset } from '@/hooks/use-tab-content-inset';
 import { useTheme } from '@/hooks/use-theme';
 import { api } from '@/lib/api';
 import { formatSom } from '@/lib/format';
-import type { AdminOrder, OrderStatus } from '@/lib/types';
+import { CANCELLED_BY_LABEL, groupOrders, groupProgress, whoCancelled } from '@/lib/orders';
+import type { AdminOrder, CancelledBy, OrderStatus } from '@/lib/types';
 
 /**
  * The order log.
@@ -47,7 +48,18 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: 'in_progress', label: 'Bajarilmoqda' },
   { key: 'completed', label: 'Tugallangan' },
   { key: 'expired', label: 'Muddati tugagan' },
+  { key: 'rejected', label: 'Rad etilgan' },
   { key: 'cancelled', label: 'Bekor qilingan' },
+];
+
+/** Narrowing a cancelled list down to who called it off. */
+type CancelFilter = 'all' | CancelledBy | 'unknown';
+const CANCEL_FILTERS: { key: CancelFilter; label: string }[] = [
+  { key: 'all', label: 'Hammasi' },
+  { key: 'worker', label: 'Ishchi' },
+  { key: 'customer', label: 'Buyurtmachi' },
+  { key: 'company', label: 'Firma' },
+  { key: 'unknown', label: "Noma'lum" },
 ];
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -58,6 +70,7 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   in_progress: 'Bajarilmoqda',
   completed: 'Tugallangan',
   cancelled: 'Bekor qilingan',
+  rejected: 'Rad etilgan',
   expired: 'Muddati tugagan',
 };
 
@@ -75,16 +88,20 @@ function bucketTitle(bucket: string): string {
   return `${Number(parts[2])}-${month}, ${parts[0]}`;
 }
 
-/** A row is either a group heading or one order — one flat list, no nesting. */
+/**
+ * A row is a group heading, or one request — which is one order, or several
+ * orders when somebody asked for several workers at once. One flat list.
+ */
 type Item =
   | { kind: 'header'; bucket: string; count: number; revenue: number }
-  | { kind: 'order'; order: AdminOrder; first: boolean; last: boolean };
+  | { kind: 'order'; orders: AdminOrder[]; first: boolean; last: boolean };
 
 export default function OrdersScreen() {
   const t = useTheme();
   const bottomInset = useTabContentInset();
   const [period, setPeriod] = useState<Period>('day');
   const [status, setStatus] = useState<StatusFilter>('all');
+  const [cancelBy, setCancelBy] = useState<CancelFilter>('all');
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -107,28 +124,38 @@ export default function OrdersScreen() {
 
   useEffect(() => { load(period, status); }, [period, status, load]);
 
+  /** Who-cancelled is read on this side, so it filters on this side too. */
+  const shown = useMemo(
+    () =>
+      status === 'cancelled' && cancelBy !== 'all'
+        ? orders.filter((o) => whoCancelled(o) === cancelBy)
+        : orders,
+    [orders, status, cancelBy],
+  );
+
   /** Orders arrive newest-first, so buckets stay in order as we walk the list. */
   const items = useMemo(() => {
     const out: Item[] = [];
     let i = 0;
-    while (i < orders.length) {
-      const bucket = orders[i].bucket;
-      const group: AdminOrder[] = [];
-      while (i < orders.length && orders[i].bucket === bucket) group.push(orders[i++]);
+    while (i < shown.length) {
+      const bucket = shown[i].bucket;
+      const inBucket: AdminOrder[] = [];
+      while (i < shown.length && shown[i].bucket === bucket) inBucket.push(shown[i++]);
       out.push({
         kind: 'header',
         bucket,
-        count: group.length,
-        revenue: group.reduce((sum, o) => sum + (o.commission ?? 0), 0),
+        count: inBucket.length,
+        revenue: inBucket.reduce((sum, o) => sum + (o.commission ?? 0), 0),
       });
-      group.forEach((order, idx) =>
-        out.push({ kind: 'order', order, first: idx === 0, last: idx === group.length - 1 })
+      const requests = groupOrders(inBucket);
+      requests.forEach((group, idx) =>
+        out.push({ kind: 'order', orders: group, first: idx === 0, last: idx === requests.length - 1 })
       );
     }
     return out;
-  }, [orders]);
+  }, [shown]);
 
-  const totalRevenue = orders.reduce((sum, o) => sum + (o.commission ?? 0), 0);
+  const totalRevenue = shown.reduce((sum, o) => sum + (o.commission ?? 0), 0);
 
   const header = () => (
     <View>
@@ -157,7 +184,10 @@ export default function OrdersScreen() {
           return (
             <Pressable
               key={f.key}
-              onPress={() => setStatus(f.key)}
+              onPress={() => {
+                setStatus(f.key);
+                setCancelBy('all');
+              }}
               style={[
                 styles.chip,
                 { backgroundColor: active ? t.primary : t.surfaceMuted },
@@ -171,11 +201,40 @@ export default function OrdersScreen() {
         })}
       </ScrollView>
 
+      {/* Who called it off — the first question about any cancelled job. */}
+      {status === 'cancelled' ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chips}
+          style={styles.chipsScroll}
+        >
+          {CANCEL_FILTERS.map((f) => {
+            const active = cancelBy === f.key;
+            const n = f.key === 'all' ? orders.length : orders.filter((o) => whoCancelled(o) === f.key).length;
+            return (
+              <Pressable
+                key={f.key}
+                onPress={() => setCancelBy(f.key)}
+                style={[
+                  styles.chip,
+                  { backgroundColor: active ? t.danger : t.dangerSoft },
+                ]}
+              >
+                <Text style={[styles.chipText, { color: active ? '#FFFFFF' : t.danger }]}>
+                  {f.label} · {n}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      ) : null}
+
       <View style={styles.totalsRow}>
         <View style={[styles.totalCard, { backgroundColor: t.primarySoft }]}>
           <Ionicons name="cart" size={20} color={t.primary} />
           <Text style={[styles.totalLabel, { color: t.primary }]}>Buyurtmalar</Text>
-          <Text style={[styles.totalValue, { color: t.primary }]}>{orders.length} ta</Text>
+          <Text style={[styles.totalValue, { color: t.primary }]}>{shown.length} ta</Text>
         </View>
         <View style={[styles.totalCard, { backgroundColor: t.successSoft }]}>
           <Ionicons name="trending-up" size={20} color={t.success} />
@@ -195,7 +254,7 @@ export default function OrdersScreen() {
       ) : (
         <FlatList
           data={items}
-          keyExtractor={(it) => (it.kind === 'header' ? `h:${it.bucket}` : it.order.id)}
+          keyExtractor={(it) => (it.kind === 'header' ? `h:${it.bucket}` : it.orders[0].id)}
           renderItem={({ item }) =>
             item.kind === 'header' ? (
               <Text style={[styles.groupHeader, { color: t.textMuted }]}>
@@ -203,7 +262,11 @@ export default function OrdersScreen() {
                 {item.revenue > 0 ? `  ·  +${formatSom(item.revenue)}` : ''}
               </Text>
             ) : (
-              <OrderCard order={item.order} first={item.first} last={item.last} />
+              item.orders.length > 1 ? (
+                <BatchCard orders={item.orders} first={item.first} last={item.last} />
+              ) : (
+                <OrderCard order={item.orders[0]} first={item.first} last={item.last} />
+              )
             )
           }
           ListHeaderComponent={header}
@@ -243,10 +306,12 @@ function OrderCard({ order, first, last }: { order: AdminOrder; first: boolean; 
       case 'accepted':
       case 'in_progress': return { bg: t.primarySoft, fg: t.primary };
       case 'cancelled':
+      case 'rejected':
       case 'expired': return { bg: t.dangerSoft, fg: t.danger };
       default: return { bg: t.warningSoft, fg: t.warning };
     }
   })();
+  const cancelledBy = whoCancelled(order);
 
   const customer = order.customer_name || order.customer_phone || '—';
   const taker = order.worker_name || order.company_name;
@@ -278,7 +343,7 @@ function OrderCard({ order, first, last }: { order: AdminOrder; first: boolean; 
         </Text>
         <View style={[styles.statusBadge, { backgroundColor: tone.bg }]}>
           <Text style={[styles.statusText, { color: tone.fg }]}>
-            {STATUS_LABELS[order.status] ?? order.status}
+            {cancelledBy ? CANCELLED_BY_LABEL[cancelledBy] : STATUS_LABELS[order.status] ?? order.status}
           </Text>
         </View>
       </View>
@@ -334,8 +399,111 @@ function OrderCard({ order, first, last }: { order: AdminOrder; first: boolean; 
   );
 }
 
+/**
+ * One request for several workers: how many of them came, and each place.
+ *
+ * "I need four workers" goes out as four orders, and as four unrelated cards
+ * the office could not tell that a customer had been sent two people out of
+ * four — the thing they are ringing about.
+ */
+function BatchCard({ orders, first, last }: { orders: AdminOrder[]; first: boolean; last: boolean }) {
+  const t = useTheme();
+  const [open, setOpen] = useState(false);
+  const head = orders[0];
+  const { found, searching, total } = groupProgress(orders);
+  const customer = head.customer_name || head.customer_phone || '—';
+
+  return (
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: t.surface },
+        first && styles.firstCard,
+        last && styles.lastCard,
+        !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.borderLight },
+      ]}
+    >
+      <View style={styles.cardTop}>
+        <Text style={[styles.cardTitle, { color: t.text }]} numberOfLines={1}>
+          {head.category_name || head.description || 'Buyurtma'}
+        </Text>
+        <View style={[styles.statusBadge, { backgroundColor: t.primarySoft }]}>
+          <Text style={[styles.statusText, { color: t.primary }]}>{total} ta ishchi</Text>
+        </View>
+      </View>
+
+      <Text style={[styles.batchProgress, { color: found === total ? t.success : t.text }]}>
+        {total} tadan {found} tasi topildi
+        {searching > 0 ? ` · ${searching} tasi qidirilmoqda` : ''}
+      </Text>
+
+      {/* One segment per place, in the order of the rows below. */}
+      <View style={styles.segments}>
+        {orders.map((o) => {
+          const c =
+            ['accepted', 'in_progress', 'completed'].includes(o.status)
+              ? t.success
+              : ['pending', 'matching', 'invited'].includes(o.status)
+                ? t.warning
+                : t.danger;
+          return <View key={o.id} style={[styles.segment, { backgroundColor: c }]} />;
+        })}
+      </View>
+
+      <View style={styles.line}>
+        <Ionicons name="person-outline" size={14} color={t.textMuted} />
+        <Text style={[styles.lineText, { color: t.textSecondary }]} numberOfLines={1}>
+          {customer}
+          {head.customer_phone ? ` · ${head.customer_phone}` : ''}
+        </Text>
+      </View>
+
+      <Pressable style={styles.line} onPress={() => setOpen(!open)} hitSlop={6}>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={14} color={t.primary} />
+        <Text style={[styles.lineText, { color: t.primary }]}>
+          {open ? 'Yopish' : "Har bir ishchini ko'rish"}
+        </Text>
+      </Pressable>
+
+      {open ? (
+        <View style={[styles.slots, { borderColor: t.borderLight }]}>
+          {orders.map((o, i) => {
+            const by = whoCancelled(o);
+            return (
+              <View key={o.id} style={styles.slotRow}>
+                <Text style={[styles.slotIndex, { color: t.textMuted }]}>{i + 1}.</Text>
+                <Text style={[styles.lineText, { color: t.textSecondary }]} numberOfLines={1}>
+                  {o.worker_name || 'Hech kim'}
+                  {o.worker_phone ? ` · ${o.worker_phone}` : ''}
+                </Text>
+                <Text style={[styles.slotStatus, { color: t.textMuted }]} numberOfLines={1}>
+                  {by ? CANCELLED_BY_LABEL[by] : STATUS_LABELS[o.status] ?? o.status}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
+
+      <View style={styles.footerRow}>
+        <Text style={[styles.footerText, { color: t.textMuted }]}>
+          {new Date(head.created_at).toLocaleString()}
+        </Text>
+        <Text style={[styles.price, { color: t.text }]}>{formatSom(head.price)} so‘m · har biriga</Text>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  batchProgress: { fontSize: 15, fontWeight: '600' },
+  segments: { flexDirection: 'row', gap: 4 },
+  segment: { flex: 1, height: 5, borderRadius: 3 },
+  slots: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 6, gap: 6 },
+  slotRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  slotIndex: { width: 18, fontSize: 13 },
+  slotStatus: { fontSize: 12, maxWidth: 140 },
   largeTitle: { fontSize: 34, fontWeight: '700', paddingHorizontal: 16, paddingTop: 8 },
   listContent: { padding: 16 },
 

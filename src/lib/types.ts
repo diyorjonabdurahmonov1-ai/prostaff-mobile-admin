@@ -2,7 +2,10 @@
 
 export type Role = 'customer' | 'worker' | 'company' | 'admin';
 export type Gender = 'male' | 'female' | 'any';
-export type OrderStatus = 'pending' | 'matching' | 'invited' | 'accepted' | 'in_progress' | 'completed' | 'cancelled' | 'expired';
+export type OrderStatus = 'pending' | 'matching' | 'invited' | 'accepted' | 'in_progress' | 'completed' | 'cancelled' | 'rejected' | 'expired';
+
+/** Who closed a cancelled order, when the server says so (see `lib/orders.ts`). */
+export type CancelledBy = 'customer' | 'worker' | 'company' | 'admin' | 'system';
 
 export interface Wallet {
   balance: number;
@@ -78,6 +81,11 @@ export interface CompanyProfile {
   /** office location; 0,0 means no pin was ever set */
   lat?: number;
   lng?: number;
+  /** A firm that goes out to customers can share where its phone is now. */
+  live_location?: boolean;
+  live_lat?: number;
+  live_lng?: number;
+  live_updated_at?: string;
   online: boolean;
   banned: boolean;
   rating: number;
@@ -199,6 +207,13 @@ export interface Order {
   invited_worker_ids: string[];
   invite_expires_at?: string;
   commission_amount?: number;
+  /** Shared by the orders of one "N workers" request. */
+  batch_id?: string;
+  batch_size?: number;
+  /** Who cancelled it — not every server sends this yet. */
+  cancelled_by?: CancelledBy;
+  /** When the worker or firm answered (accepted or declined). */
+  responded_at?: string;
   created_at: string;
 }
 
