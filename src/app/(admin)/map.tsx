@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
@@ -9,7 +8,6 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,13 +16,14 @@ import { Text } from '@/components/text';
 import { useTabContentInset } from '@/hooks/use-tab-content-inset';
 import { useTheme } from '@/hooks/use-theme';
 import { api } from '@/lib/api';
-import { hasPin, MAX_PINS, staticMapUrl, yandexMapsUrl, type Pin } from '@/lib/static-map';
+import { hasPin, MAX_PINS, yandexMapsUrl, yandexPinUrl, type Pin } from '@/lib/map-links';
 import type { CompanyProfile, User } from '@/lib/types';
 
 /**
  * Who is online right now, and where.
  *
- * Workers are placed where their phone last reported (the mobile app reports
+ * The list is the screen; the map itself opens in Yandex Maps (see
+ * `lib/map-links.ts`). Workers are placed where their phone last reported (the mobile app reports
  * every minute while they are online). A firm has its office, and — when it
  * goes out to customers and has live location on — where its phone is now;
  * both are shown, in different colours, so neither is mistaken for the other.
@@ -64,13 +63,11 @@ function minutesAgo(iso?: string): number | null {
 export default function LiveMapScreen() {
   const t = useTheme();
   const bottomInset = useTabContentInset();
-  const { width } = useWindowDimensions();
   const [filter, setFilter] = useState<Filter>('all');
   const [users, setUsers] = useState<User[]>([]);
   const [firms, setFirms] = useState<CompanyProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [stamp, setStamp] = useState(Date.now());
 
   const load = useCallback(async () => {
     try {
@@ -80,7 +77,6 @@ export default function LiveMapScreen() {
       ]);
       setUsers(u ?? []);
       setFirms(c ?? []);
-      setStamp(Date.now());
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -146,12 +142,7 @@ export default function LiveMapScreen() {
     return out;
   }, [users, firms, filter]);
 
-  const pins: Pin[] = entries.map((e, i) => ({
-    lat: e.lat,
-    lng: e.lng,
-    color: e.kind === 'worker' ? 'gn' : e.kind === 'office' ? 'bl' : 'or',
-    label: i + 1,
-  }));
+  const pins: Pin[] = entries.map((e) => ({ lat: e.lat, lng: e.lng }));
 
   const counts = {
     workers: entries.filter((e) => e.kind === 'worker').length,
@@ -159,8 +150,6 @@ export default function LiveMapScreen() {
     live: entries.filter((e) => e.kind === 'live').length,
   };
 
-  const mapWidth = Math.min(width - 32, 650);
-  const mapHeight = Math.round((mapWidth * 450) / 650);
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: t.background }]} edges={['top']}>
@@ -206,33 +195,28 @@ export default function LiveMapScreen() {
           <ActivityIndicator style={{ marginTop: 32 }} color={t.primary} />
         ) : (
           <>
-            {/* The map: tap for the same pins in Yandex Maps. */}
+            {/* Everyone at once, in Yandex Maps — see lib/map-links.ts for why the
+                map is not drawn inside the app. */}
             <Pressable
               onPress={() => Linking.openURL(yandexMapsUrl(pins)).catch(() => {})}
-              style={[styles.mapFrame, { backgroundColor: t.surfaceMuted, width: mapWidth, height: mapHeight }]}
+              disabled={entries.length === 0}
+              style={({ pressed }) => [
+                styles.openAll,
+                { backgroundColor: t.primary, opacity: entries.length === 0 ? 0.5 : pressed ? 0.8 : 1 },
+              ]}
             >
-              <Image
-                // The stamp changes the URL on every refresh, so a cached image
-                // never shows yesterday's pins.
-                source={{ uri: `${staticMapUrl(pins, mapWidth, mapHeight)}&_=${stamp}` }}
-                style={{ width: mapWidth, height: mapHeight }}
-                contentFit="cover"
-                transition={150}
-              />
-              <View style={[styles.openPill, { backgroundColor: t.surface }]}>
-                <Ionicons name="open-outline" size={14} color={t.primary} />
-                <Text style={[styles.openText, { color: t.primary }]}>Yandex Xaritada ochish</Text>
-              </View>
+              <Ionicons name="map" size={20} color="#FFFFFF" />
+              <Text style={styles.openAllText}>Hammasini Yandex Xaritada ko'rish</Text>
             </Pressable>
 
             <View style={styles.legend}>
-              <Legend color="#2DB400" label="Ishchi" />
-              <Legend color="#1E98FF" label="Firma ofisi" />
-              <Legend color="#FF8C00" label="Firma hozir shu yerda" />
+              <Legend color={t.success} label="Ishchi" />
+              <Legend color={t.primary} label="Firma ofisi" />
+              <Legend color={t.warning} label="Firma hozir shu yerda" />
             </View>
             {entries.length > MAX_PINS ? (
               <Text style={[styles.hint, { color: t.textMuted }]}>
-                Xaritada birinchi {MAX_PINS} tasi ko'rsatilgan; ro'yxatda hammasi.
+                Yandex Xaritada birinchi {MAX_PINS} tasi ochiladi; ro'yxatda hammasi.
               </Text>
             ) : null}
 
@@ -270,9 +254,7 @@ export default function LiveMapScreen() {
                     </View>
                     <Pressable
                       hitSlop={8}
-                      onPress={() =>
-                        Linking.openURL(`https://yandex.uz/maps/?pt=${e.lng},${e.lat}&z=16&l=map`).catch(() => {})
-                      }
+                      onPress={() => Linking.openURL(yandexPinUrl(e)).catch(() => {})}
                     >
                       <Ionicons name="map-outline" size={20} color={t.primary} />
                     </Pressable>
@@ -319,19 +301,15 @@ const styles = StyleSheet.create({
   count: { flex: 1, borderRadius: 10, padding: 10, gap: 2 },
   countValue: { fontSize: 22, fontWeight: '700' },
   countLabel: { fontSize: 12 },
-  mapFrame: { borderRadius: 12, overflow: 'hidden', alignSelf: 'center' },
-  openPill: {
-    position: 'absolute',
-    left: 10,
-    bottom: 10,
+  openAll: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
+    justifyContent: 'center',
+    gap: 8,
+    height: 50,
+    borderRadius: 12,
   },
-  openText: { fontSize: 13, fontWeight: '600' },
+  openAllText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
