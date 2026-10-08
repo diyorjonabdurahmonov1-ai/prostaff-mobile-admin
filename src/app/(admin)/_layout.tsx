@@ -47,6 +47,9 @@ export default function AdminLayout() {
         />
       ))}
       <Tabs.Screen name="user/[id]" options={{ href: null }} />
+      {/* Opened from the dashboard rather than a tab of its own: the bar
+          already holds seven, and an eighth would not fit on a phone. */}
+      <Tabs.Screen name="map" options={{ href: null }} />
     </Tabs>
   );
 }
