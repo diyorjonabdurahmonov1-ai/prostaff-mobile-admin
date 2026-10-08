@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -16,7 +17,8 @@ import { useTabContentInset } from '@/hooks/use-tab-content-inset';
 import { useTheme } from '@/hooks/use-theme';
 import { api } from '@/lib/api';
 import { formatSom } from '@/lib/format';
-import { CANCELLED_BY_LABEL, groupOrders, groupProgress, whoCancelled } from '@/lib/orders';
+import { rememberOrders } from '@/lib/order-cache';
+import { CANCELLED_BY_LABEL, groupOrders, groupProgress, STATUS_LABELS, whoCancelled } from '@/lib/orders';
 import type { AdminOrder, CancelledBy, OrderStatus } from '@/lib/types';
 
 /**
@@ -62,17 +64,6 @@ const CANCEL_FILTERS: { key: CancelFilter; label: string }[] = [
   { key: 'unknown', label: "Noma'lum" },
 ];
 
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  pending: 'Kutilmoqda',
-  matching: 'Qidirilmoqda',
-  invited: 'Qidirilmoqda',
-  accepted: 'Qabul qilingan',
-  in_progress: 'Bajarilmoqda',
-  completed: 'Tugallangan',
-  cancelled: 'Bekor qilingan',
-  rejected: 'Rad etilgan',
-  expired: 'Muddati tugagan',
-};
 
 const MONTHS = [
   'yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun',
@@ -113,6 +104,7 @@ export default function OrdersScreen() {
       // job should not pull the whole year down the wire first.
       const query = `?period=${p}${s === 'all' ? '' : `&status=${s}`}`;
       const res = await api.get<AdminOrder[]>(`/admin/orders${query}`);
+      rememberOrders(res ?? []);
       setOrders(res ?? []);
     } catch {
       setOrders([]);
@@ -123,6 +115,13 @@ export default function OrdersScreen() {
   }, []);
 
   useEffect(() => { load(period, status); }, [period, status, load]);
+
+  // Coming back from an order after acting on it shows the new state.
+  useFocusEffect(
+    useCallback(() => {
+      load(period, status, true);
+    }, [load, period, status]),
+  );
 
   /** Who-cancelled is read on this side, so it filters on this side too. */
   const shown = useMemo(
@@ -328,10 +327,13 @@ function OrderCard({ order, first, last }: { order: AdminOrder; first: boolean; 
   };
 
   return (
-    <View
-      style={[
+    // The whole card opens the order — where it can be cancelled, handed to
+    // another worker or closed. Calls and the map keep their own taps.
+    <Pressable
+      onPress={() => router.push(`/(admin)/order/${order.id}` as any)}
+      style={({ pressed }) => [
         styles.card,
-        { backgroundColor: t.surface },
+        { backgroundColor: pressed ? t.surfaceMuted : t.surface },
         first && styles.firstCard,
         last && styles.lastCard,
         !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.borderLight },
@@ -395,7 +397,7 @@ function OrderCard({ order, first, last }: { order: AdminOrder; first: boolean; 
           {order.commission > 0 ? ` · +${formatSom(order.commission)}` : ''}
         </Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -470,7 +472,11 @@ function BatchCard({ orders, first, last }: { orders: AdminOrder[]; first: boole
           {orders.map((o, i) => {
             const by = whoCancelled(o);
             return (
-              <View key={o.id} style={styles.slotRow}>
+              <Pressable
+                key={o.id}
+                style={styles.slotRow}
+                onPress={() => router.push(`/(admin)/order/${o.id}` as any)}
+              >
                 <Text style={[styles.slotIndex, { color: t.textMuted }]}>{i + 1}.</Text>
                 <Text style={[styles.lineText, { color: t.textSecondary }]} numberOfLines={1}>
                   {o.worker_name || 'Hech kim'}
@@ -479,7 +485,8 @@ function BatchCard({ orders, first, last }: { orders: AdminOrder[]; first: boole
                 <Text style={[styles.slotStatus, { color: t.textMuted }]} numberOfLines={1}>
                   {by ? CANCELLED_BY_LABEL[by] : STATUS_LABELS[o.status] ?? o.status}
                 </Text>
-              </View>
+                <Ionicons name="chevron-forward" size={13} color={t.textMuted} />
+              </Pressable>
             );
           })}
         </View>

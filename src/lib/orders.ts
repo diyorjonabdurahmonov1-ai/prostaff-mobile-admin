@@ -6,7 +6,7 @@
  * order off.
  */
 
-import type { AdminOrder, CancelledBy } from '@/lib/types';
+import type { AdminOrder, CancelledBy, OrderStatus } from '@/lib/types';
 
 /** Orders of one request are posted together; this is the fallback window. */
 const SAME_REQUEST_MS = 15_000;
@@ -80,3 +80,16 @@ export function responseMinutes(order: AdminOrder): number | null {
   const ms = new Date(order.responded_at).getTime() - new Date(order.created_at).getTime();
   return Number.isFinite(ms) && ms >= 0 ? ms / 60000 : null;
 }
+
+/** Status names as the office says them. */
+export const STATUS_LABELS: Record<OrderStatus, string> = {
+  pending: 'Kutilmoqda',
+  matching: 'Qidirilmoqda',
+  invited: 'Qidirilmoqda',
+  accepted: 'Qabul qilingan',
+  in_progress: 'Bajarilmoqda',
+  completed: 'Tugallangan',
+  cancelled: 'Bekor qilingan',
+  rejected: 'Rad etilgan',
+  expired: 'Muddati tugagan',
+};
