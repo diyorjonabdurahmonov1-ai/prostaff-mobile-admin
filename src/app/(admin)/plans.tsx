@@ -24,6 +24,7 @@ import type {
   SubscriptionPlan,
   SubscriptionTotals,
 } from '@/lib/types';
+import { BackLink } from '@/components/back-link';
 
 interface HistoryResponse {
   subscriptions: AdminSubscription[];
@@ -183,6 +184,7 @@ export default function PlansScreen() {
             tintColor={t.primary}
           />
         }>
+        <BackLink />
         <Text style={[styles.largeTitle, { color: t.text }]}>Tariflar va to'lovlar</Text>
 
         {/* The money, and the firms somebody should be ringing this week. */}

@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -28,7 +29,8 @@ export default function CompaniesScreen() {
     if (!silent) setLoading(true);
     try {
       const res = await api.get<CompanyProfile[]>('/admin/companies');
-      setCompanies(res ?? []);
+      // Online firms first: they are the ones taking orders right now.
+      setCompanies([...(res ?? [])].sort((a, b) => Number(b.online) - Number(a.online)));
     } catch { /* ignore */ } finally {
       setLoading(false);
       setRefreshing(false);
@@ -37,21 +39,44 @@ export default function CompaniesScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  const toggleBan = async (c: CompanyProfile) => {
+  /**
+   * Asks first. A ban takes a firm off the platform mid-day, and the button
+   * sits at the end of a row people tap to open — one slip used to do it.
+   */
+  const toggleBan = (c: CompanyProfile) => {
     const action = c.banned ? 'unban' : 'ban';
-    try {
-      await api.post(`/admin/companies/${c.id}/${action}`);
-      load(true);
-    } catch (e: any) {
-      Alert.alert('Xatolik', e.message);
-    }
+    Alert.alert(
+      c.banned ? 'Blokdan chiqarilsinmi?' : 'Firma bloklansinmi?',
+      c.banned
+        ? `${c.name} yana buyurtma qabul qila oladi.`
+        : `${c.name} mijozlarga ko'rinmaydi va buyurtma ololmaydi.`,
+      [
+        { text: 'Bekor qilish', style: 'cancel' },
+        {
+          text: c.banned ? 'Blokdan chiqarish' : 'Bloklash',
+          style: c.banned ? 'default' : 'destructive',
+          onPress: async () => {
+            try {
+              await api.post(`/admin/companies/${c.id}/${action}`);
+              load(true);
+            } catch (e: any) {
+              Alert.alert('Xatolik', e.message);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const renderItem = ({ item, index }: { item: CompanyProfile; index: number }) => (
-    <View
-      style={[
+    // The row opens the firm's account — everything an admin does to a firm
+    // (subscription, profile, status) lives on that page, and the list had
+    // no way to it.
+    <Pressable
+      onPress={() => router.push(`/(admin)/user/${item.user_id}` as any)}
+      style={({ pressed }) => [
         styles.row,
-        { backgroundColor: t.surface },
+        { backgroundColor: t.surface, opacity: pressed ? 0.7 : 1 },
         index === 0 && styles.firstRow,
         index === companies.length - 1 && styles.lastRow,
       ]}
@@ -94,6 +119,11 @@ export default function CompaniesScreen() {
               <Text style={[styles.bannedText, { color: t.danger }]}>Banlangan</Text>
             </View>
           )}
+          {item.live_location ? (
+            <View style={[styles.bannedTag, { backgroundColor: t.warningSoft }]}>
+              <Text style={[styles.bannedText, { color: t.warning }]}>Jonli joylashuv</Text>
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -111,7 +141,7 @@ export default function CompaniesScreen() {
           {item.banned ? 'Ochish' : 'Ban'}
         </Text>
       </Pressable>
-    </View>
+    </Pressable>
   );
 
   const separator = () => (
@@ -153,7 +183,7 @@ const styles = StyleSheet.create({
   avatar: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   rowContent: { flex: 1 },
   name: { fontSize: 17 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 3 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   meta: { fontSize: 13 },
   bannedTag: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 },

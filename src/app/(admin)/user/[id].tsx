@@ -12,6 +12,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ROLE_LABELS } from '@/lib/roles';
 
 const ALL_ROLES: Role[] = ['customer', 'worker', 'company', 'admin'];
 
@@ -132,13 +133,32 @@ export default function UserDetailScreen() {
     }
   };
 
-  const toggleRole = async (role: Role, has: boolean) => {
-    try {
-      await api.post(`/admin/users/${id}/roles`, { role, action: has ? 'remove' : 'add' });
-      load();
-    } catch (e: any) {
-      Alert.alert('Xatolik', e.message);
+  const toggleRole = (role: Role, has: boolean) => {
+    const apply = async () => {
+      try {
+        await api.post(`/admin/users/${id}/roles`, { role, action: has ? 'remove' : 'add' });
+        load();
+      } catch (e: any) {
+        Alert.alert('Xatolik', e.message);
+      }
+    };
+    // Adding an ordinary role is safe to do in one tap. Taking a role away
+    // switches off a panel the person may be working in, and granting admin
+    // hands over this whole app — both ask first.
+    if (!has && role !== 'admin') {
+      apply();
+      return;
     }
+    Alert.alert(
+      has ? `«${ROLE_LABELS[role]}» roli olib tashlansinmi?` : 'Admin huquqi berilsinmi?',
+      has
+        ? "Foydalanuvchi bu rol bilan bog'liq paneldan foydalana olmaydi."
+        : "Bu foydalanuvchi admin ilovasiga kirib, hamma narsani boshqara oladi.",
+      [
+        { text: 'Bekor qilish', style: 'cancel' },
+        { text: has ? 'Olib tashlash' : 'Admin qilish', style: 'destructive', onPress: apply },
+      ],
+    );
   };
 
   /* ───── Company: Create ───── */
@@ -336,14 +356,30 @@ export default function UserDetailScreen() {
     }
   };
 
-  const toggleBan = async () => {
+  /** Asks first — a ban takes the worker off every job feed at once. */
+  const toggleBan = () => {
     const isBanned = user?.worker_profile?.banned;
-    try {
-      await api.post(`/admin/workers/${id}/${isBanned ? 'unban' : 'ban'}`);
-      load();
-    } catch (e: any) {
-      Alert.alert('Xatolik', e.message);
-    }
+    Alert.alert(
+      isBanned ? 'Blokdan chiqarilsinmi?' : 'Ishchi bloklansinmi?',
+      isBanned
+        ? 'Ishchi yana buyurtma qabul qila oladi.'
+        : "Ishchiga buyurtmalar kelmaydi va u mijozlarga ko'rinmaydi.",
+      [
+        { text: 'Bekor qilish', style: 'cancel' },
+        {
+          text: isBanned ? 'Blokdan chiqarish' : 'Bloklash',
+          style: isBanned ? 'default' : 'destructive',
+          onPress: async () => {
+            try {
+              await api.post(`/admin/workers/${id}/${isBanned ? 'unban' : 'ban'}`);
+              load();
+            } catch (e: any) {
+              Alert.alert('Xatolik', e.message);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const setCreditLimitApi = async () => {
@@ -599,7 +635,7 @@ export default function UserDetailScreen() {
               <View key={role}>
                 {i > 0 && <Divider color={t.borderLight} />}
                 <View style={styles.roleRow}>
-                  <Text style={[styles.roleText, { color: t.text }]}>{role}</Text>
+                  <Text style={[styles.roleText, { color: t.text }]}>{ROLE_LABELS[role]}</Text>
                   <Pressable
                     style={({ pressed }) => [
                       styles.roleBtn,
