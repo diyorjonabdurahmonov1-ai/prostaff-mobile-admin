@@ -38,6 +38,14 @@ export default function SettingsScreen() {
   const [radius, setRadius] = useState('');
   const [waveSize, setWaveSize] = useState('');
   const [hasDispatch, setHasDispatch] = useState(false);
+  // How long a customer waits before calling another worker, and the oldest
+  // app version still let in, with where "update" leads. Newer servers only.
+  const [noShow, setNoShow] = useState('');
+  const [hasNoShow, setHasNoShow] = useState(false);
+  const [minVersion, setMinVersion] = useState('');
+  const [androidUrl, setAndroidUrl] = useState('');
+  const [iosUrl, setIosUrl] = useState('');
+  const [hasVersion, setHasVersion] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -55,6 +63,12 @@ export default function SettingsScreen() {
       setRadius(res.match_radius_km?.toString() ?? '');
       setWaveSize(res.dispatch_wave_size?.toString() ?? '');
       setHasDispatch(res.match_radius_km != null);
+      setNoShow(res.no_show_minutes?.toString() ?? '');
+      setHasNoShow(res.no_show_minutes != null);
+      setMinVersion(res.min_app_version ?? '');
+      setAndroidUrl(res.android_store_url ?? '');
+      setIosUrl(res.ios_store_url ?? '');
+      setHasVersion(res.min_app_version != null);
     } catch { /* ignore */ } finally {
       setLoading(false);
     }
@@ -65,7 +79,7 @@ export default function SettingsScreen() {
   const save = async () => {
     setSaving(true);
     try {
-      const body: Record<string, number> = {};
+      const body: Record<string, number | string> = {};
       if (commission) body.commission_percent = parseFloat(commission);
       if (minBalance) body.min_balance = parseFloat(minBalance);
       // Zero is a real value for both ("no free jobs", "no notice"), so they are
@@ -85,6 +99,30 @@ export default function SettingsScreen() {
         }
         body.match_radius_km = km;
         body.dispatch_wave_size = wave;
+      }
+      if (hasNoShow) {
+        const minutes = parseInt(noShow, 10);
+        if (!(minutes >= 5 && minutes <= 240)) {
+          Alert.alert('Xatolik', "Kutish vaqti 5 dan 240 daqiqagacha bo'lishi kerak.");
+          return;
+        }
+        body.no_show_minutes = minutes;
+      }
+      if (hasVersion) {
+        const version = minVersion.trim();
+        if (version !== '' && !/^\d+(\.\d+){0,3}$/.test(version)) {
+          Alert.alert('Xatolik', "Versiya 1.2.0 ko'rinishida bo'lishi kerak.");
+          return;
+        }
+        for (const link of [androidUrl.trim(), iosUrl.trim()]) {
+          if (link !== '' && !link.startsWith('https://')) {
+            Alert.alert('Xatolik', "Havola https:// bilan boshlanishi kerak.");
+            return;
+          }
+        }
+        body.min_app_version = version;
+        body.android_store_url = androidUrl.trim();
+        body.ios_store_url = iosUrl.trim();
       }
       await api.patch('/admin/settings', body);
       Alert.alert('Muvaffaqiyat', 'Sozlamalar saqlandi');
@@ -260,6 +298,116 @@ export default function SettingsScreen() {
                 <Text style={[styles.hint, { color: t.textMuted }]}>
                   Avval eng yaqin shuncha ishchiga boradi; 12 soniyada hech kim olmasa, keyingi eng yaqinlarga.
                   0 — radiusdagi hammaga birdan.
+                </Text>
+              </View>
+
+              {hasNoShow ? (
+                <>
+              <View style={[styles.divider, { backgroundColor: t.borderLight }]} />
+
+              <View style={styles.field}>
+                <View style={styles.fieldRow}>
+                  <Ionicons name="time-outline" size={20} color={t.primary} />
+                  <Text style={[styles.fieldLabel, { color: t.text }]}>Ishchini kutish vaqti (daqiqa)</Text>
+                </View>
+                <TextInput
+                  style={[styles.input, { backgroundColor: t.surfaceMuted, color: t.text }]}
+                  value={noShow}
+                  onChangeText={setNoShow}
+                  keyboardType="number-pad"
+                  placeholder="30"
+                  placeholderTextColor={t.textMuted}
+                />
+                <Text style={[styles.hint, { color: t.textMuted }]}>
+                  Ishchi qabul qilgandan shuncha daqiqa o&apos;tib ham yetib kelmasa, mijoz boshqa ishchi chaqira oladi.
+                </Text>
+              </View>
+
+                </>
+              ) : null}
+
+              <Pressable
+                style={({ pressed }) => [styles.saveBtn, { backgroundColor: t.primary, opacity: pressed ? 0.7 : 1 }]}
+                onPress={save}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator color={t.onPrimary} />
+                ) : (
+                  <Text style={[styles.saveBtnText, { color: t.onPrimary }]}>Saqlash</Text>
+                )}
+              </Pressable>
+            </View>
+          </>
+        ) : null}
+
+        {hasVersion ? (
+          <>
+            <Text style={[styles.sectionHeader, { color: t.textMuted }]}>ILOVA VERSIYASI</Text>
+            <View style={[styles.section, { backgroundColor: t.surface }]}>
+              <View style={styles.field}>
+                <View style={styles.fieldRow}>
+                  <Ionicons name="phone-portrait-outline" size={20} color={t.primary} />
+                  <Text style={[styles.fieldLabel, { color: t.text }]}>Eng past ruxsat etilgan versiya</Text>
+                </View>
+                <TextInput
+                  style={[styles.input, { backgroundColor: t.surfaceMuted, color: t.text }]}
+                  value={minVersion}
+                  onChangeText={setMinVersion}
+                  keyboardType="numbers-and-punctuation"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholder="masalan 1.2.0"
+                  placeholderTextColor={t.textMuted}
+                />
+                <Text style={[styles.hint, { color: t.textMuted }]}>
+                  Bundan eski ilova ochilmaydi va &quot;Ilovani yangilang&quot; oynasi chiqadi. Bo&apos;sh qoldirsangiz —
+                  cheklov yo&apos;q. Ehtiyot bo&apos;ling: do&apos;konda hali yo&apos;q versiyani yozsangiz, hamma
+                  foydalanuvchi ilovaga kira olmay qoladi.
+                </Text>
+              </View>
+
+              <View style={[styles.divider, { backgroundColor: t.borderLight }]} />
+
+              <View style={styles.field}>
+                <View style={styles.fieldRow}>
+                  <Ionicons name="logo-google-playstore" size={20} color={t.primary} />
+                  <Text style={[styles.fieldLabel, { color: t.text }]}>Google Play havolasi</Text>
+                </View>
+                <TextInput
+                  style={[styles.input, { backgroundColor: t.surfaceMuted, color: t.text }]}
+                  value={androidUrl}
+                  onChangeText={setAndroidUrl}
+                  keyboardType="url"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholder="https://play.google.com/store/apps/details?id=..."
+                  placeholderTextColor={t.textMuted}
+                />
+                <Text style={[styles.hint, { color: t.textMuted }]}>
+                  &quot;Yangilash&quot; tugmasi Android telefonda shu havolani ochadi.
+                </Text>
+              </View>
+
+              <View style={[styles.divider, { backgroundColor: t.borderLight }]} />
+
+              <View style={styles.field}>
+                <View style={styles.fieldRow}>
+                  <Ionicons name="logo-apple" size={20} color={t.primary} />
+                  <Text style={[styles.fieldLabel, { color: t.text }]}>App Store havolasi</Text>
+                </View>
+                <TextInput
+                  style={[styles.input, { backgroundColor: t.surfaceMuted, color: t.text }]}
+                  value={iosUrl}
+                  onChangeText={setIosUrl}
+                  keyboardType="url"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholder="https://apps.apple.com/app/..."
+                  placeholderTextColor={t.textMuted}
+                />
+                <Text style={[styles.hint, { color: t.textMuted }]}>
+                  &quot;Yangilash&quot; tugmasi iPhone&apos;da shu havolani ochadi.
                 </Text>
               </View>
 
