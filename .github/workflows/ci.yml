@@ -1,0 +1,35 @@
+# Checked on every pull request and every push to main: types, and generating
+# the Android project, which is where an invalid app.json or asset name fails
+# (in the customer app that stopped every Android build until someone built it).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: The Android project generates
+        run: npx expo prebuild --platform android --no-install
+        env:
+          CI: "1"
