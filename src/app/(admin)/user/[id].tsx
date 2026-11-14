@@ -1061,6 +1061,12 @@ export default function UserDetailScreen() {
                   value={`${Math.max(wp.free_orders_limit - wp.free_orders_used, 0)} / ${wp.free_orders_limit}`}
                   theme={t}
                 />
+                {wp.no_show_count ? (
+                  <>
+                    <Divider color={t.borderLight} />
+                    <InfoRow icon="alert-circle" label="Kelmagan (mijoz shikoyati)" value={`${wp.no_show_count} marta`} theme={t} />
+                  </>
+                ) : null}
                 <Divider color={t.borderLight} />
                 <InfoRow
                   icon="star"

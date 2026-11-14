@@ -64,6 +64,8 @@ export interface WorkerProfile {
   /** trial jobs: the first `free_orders_limit` may be accepted with an empty wallet */
   free_orders_used: number;
   free_orders_limit: number;
+  /** times a customer reported this worker took a job and never came */
+  no_show_count?: number;
   created_at: string;
 }
 
@@ -335,4 +337,10 @@ export interface Settings {
   match_radius_km?: number;
   /** workers rung per wave, nearest first; 0 = everybody at once — newer servers only */
   dispatch_wave_size?: number;
+  /** minutes a customer waits before a no-show may be reported — newer servers only */
+  no_show_minutes?: number;
+  /** oldest app version let in ('' = no minimum) and where "update" leads — newer servers only */
+  min_app_version?: string;
+  android_store_url?: string;
+  ios_store_url?: string;
 }
