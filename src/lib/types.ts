@@ -331,4 +331,8 @@ export interface Settings {
   company_discount_percent: number;
   /** how many days before expiry a firm is warned */
   subscription_warn_days: number;
+  /** how far from a job a worker may be and still be rung — newer servers only */
+  match_radius_km?: number;
+  /** workers rung per wave, nearest first; 0 = everybody at once — newer servers only */
+  dispatch_wave_size?: number;
 }

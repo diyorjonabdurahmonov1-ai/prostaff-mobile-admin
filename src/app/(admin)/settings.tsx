@@ -32,6 +32,12 @@ export default function SettingsScreen() {
   // question, and only the cards were ever charged.
   const [freeOrders, setFreeOrders] = useState('');
   const [warnDays, setWarnDays] = useState('');
+  // Who an order rings: how far away a worker may be, and how many are rung
+  // at a time, nearest first. Empty until the server sends them — an older
+  // server has neither, and then the section is not shown at all.
+  const [radius, setRadius] = useState('');
+  const [waveSize, setWaveSize] = useState('');
+  const [hasDispatch, setHasDispatch] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -46,6 +52,9 @@ export default function SettingsScreen() {
       setMinBalance(res.min_balance?.toString() ?? '');
       setFreeOrders(res.free_order_limit?.toString() ?? '');
       setWarnDays(res.subscription_warn_days?.toString() ?? '');
+      setRadius(res.match_radius_km?.toString() ?? '');
+      setWaveSize(res.dispatch_wave_size?.toString() ?? '');
+      setHasDispatch(res.match_radius_km != null);
     } catch { /* ignore */ } finally {
       setLoading(false);
     }
@@ -63,6 +72,20 @@ export default function SettingsScreen() {
       // sent whenever the field has anything in it at all.
       if (freeOrders !== '') body.free_order_limit = parseInt(freeOrders, 10);
       if (warnDays !== '') body.subscription_warn_days = parseInt(warnDays, 10);
+      if (hasDispatch) {
+        const km = parseInt(radius, 10);
+        const wave = parseInt(waveSize, 10);
+        if (!(km >= 1 && km <= 200)) {
+          Alert.alert('Xatolik', "Radius 1 dan 200 km gacha bo'lishi kerak.");
+          return;
+        }
+        if (!(wave >= 0 && wave <= 50)) {
+          Alert.alert('Xatolik', "Bir martada chaqiriladigan ishchilar soni 0 dan 50 gacha bo'lishi kerak.");
+          return;
+        }
+        body.match_radius_km = km;
+        body.dispatch_wave_size = wave;
+      }
       await api.patch('/admin/settings', body);
       Alert.alert('Muvaffaqiyat', 'Sozlamalar saqlandi');
       load();
@@ -196,6 +219,64 @@ export default function SettingsScreen() {
             )}
           </Pressable>
         </View>
+
+        {hasDispatch ? (
+          <>
+            <Text style={[styles.sectionHeader, { color: t.textMuted }]}>BUYURTMA TARQATISH</Text>
+            <View style={[styles.section, { backgroundColor: t.surface }]}>
+              <View style={styles.field}>
+                <View style={styles.fieldRow}>
+                  <Ionicons name="locate-outline" size={20} color={t.primary} />
+                  <Text style={[styles.fieldLabel, { color: t.text }]}>Qidiruv radiusi (km)</Text>
+                </View>
+                <TextInput
+                  style={[styles.input, { backgroundColor: t.surfaceMuted, color: t.text }]}
+                  value={radius}
+                  onChangeText={setRadius}
+                  keyboardType="number-pad"
+                  placeholder="15"
+                  placeholderTextColor={t.textMuted}
+                />
+                <Text style={[styles.hint, { color: t.textMuted }]}>
+                  Buyurtma manzilidan shu masofagacha bo&apos;lgan ishchilarga yuboriladi.
+                </Text>
+              </View>
+
+              <View style={[styles.divider, { backgroundColor: t.borderLight }]} />
+
+              <View style={styles.field}>
+                <View style={styles.fieldRow}>
+                  <Ionicons name="people-outline" size={20} color={t.primary} />
+                  <Text style={[styles.fieldLabel, { color: t.text }]}>Bir martada nechta ishchi</Text>
+                </View>
+                <TextInput
+                  style={[styles.input, { backgroundColor: t.surfaceMuted, color: t.text }]}
+                  value={waveSize}
+                  onChangeText={setWaveSize}
+                  keyboardType="number-pad"
+                  placeholder="3"
+                  placeholderTextColor={t.textMuted}
+                />
+                <Text style={[styles.hint, { color: t.textMuted }]}>
+                  Avval eng yaqin shuncha ishchiga boradi; 12 soniyada hech kim olmasa, keyingi eng yaqinlarga.
+                  0 — radiusdagi hammaga birdan.
+                </Text>
+              </View>
+
+              <Pressable
+                style={({ pressed }) => [styles.saveBtn, { backgroundColor: t.primary, opacity: pressed ? 0.7 : 1 }]}
+                onPress={save}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator color={t.onPrimary} />
+                ) : (
+                  <Text style={[styles.saveBtnText, { color: t.onPrimary }]}>Saqlash</Text>
+                )}
+              </Pressable>
+            </View>
+          </>
+        ) : null}
 
         {/* Account info */}
         <Text style={[styles.sectionHeader, { color: t.textMuted }]}>HISOB</Text>
