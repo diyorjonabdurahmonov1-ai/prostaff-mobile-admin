@@ -16,6 +16,7 @@ import { useAuth } from '@/store/auth';
 import { api } from '@/lib/api';
 import type { Settings } from '@/lib/types';
 import { BackLink } from '@/components/back-link';
+import { SecurityCard } from '@/components/security-card';
 
 export default function SettingsScreen() {
   const t = useTheme();
@@ -154,6 +155,8 @@ export default function SettingsScreen() {
       <KeyboardAwareScrollView contentContainerStyle={[styles.scroll, { paddingBottom: bottomInset }]}>
         <BackLink />
         <Text style={[styles.largeTitle, { color: t.text }]}>Sozlamalar</Text>
+
+        <SecurityCard />
 
         {/* Finance settings */}
         <Text style={[styles.sectionHeader, { color: t.textMuted }]}>MOLIYA</Text>
