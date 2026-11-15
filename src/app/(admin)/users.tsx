@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 import { isBanned, isOnline, ROLE_LABELS } from '@/lib/roles';
 import type { Role, User } from '@/lib/types';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -40,6 +40,9 @@ export default function UsersScreen() {
   const [role, setRole] = useState<RoleFilter>('all');
   const [onlyOnline, setOnlyOnline] = useState(false);
   const [onlyBanned, setOnlyBanned] = useState(false);
+  // Workers with no service chosen: they can never be sent a job.
+  const params = useLocalSearchParams<{ filter?: string }>();
+  const [onlyNoCategory, setOnlyNoCategory] = useState(params.filter === 'nocat');
 
   /**
    * The search narrows by name or phone on the server; these narrow the
@@ -52,9 +55,10 @@ export default function UsersScreen() {
         (u) =>
           (role === 'all' || u.roles.includes(role)) &&
           (!onlyOnline || isOnline(u)) &&
-          (!onlyBanned || isBanned(u)),
+          (!onlyBanned || isBanned(u)) &&
+          (!onlyNoCategory || (!!u.worker_profile && (u.worker_profile.category_ids?.length ?? 0) === 0)),
       ),
-    [users, role, onlyOnline, onlyBanned],
+    [users, role, onlyOnline, onlyBanned, onlyNoCategory],
   );
   const countFor = (r: RoleFilter) => (r === 'all' ? users.length : users.filter((u) => u.roles.includes(r)).length);
 
@@ -205,6 +209,12 @@ export default function UsersScreen() {
           style={[styles.chip, { backgroundColor: onlyBanned ? t.danger : t.dangerSoft }]}
         >
           <Text style={[styles.chipText, { color: onlyBanned ? '#FFFFFF' : t.danger }]}>Bloklangan</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setOnlyNoCategory(!onlyNoCategory)}
+          style={[styles.chip, { backgroundColor: onlyNoCategory ? t.warning : t.warningSoft }]}
+        >
+          <Text style={[styles.chipText, { color: onlyNoCategory ? '#FFFFFF' : t.warning }]}>Kategoriyasiz</Text>
         </Pressable>
       </ScrollView>
 

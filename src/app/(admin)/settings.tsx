@@ -198,7 +198,7 @@ export default function SettingsScreen() {
           <View style={styles.field}>
             <View style={styles.fieldRow}>
               <Ionicons name="gift-outline" size={20} color={t.primary} />
-              <Text style={[styles.fieldLabel, { color: t.text }]}>Bepul ishlar soni</Text>
+              <Text style={[styles.fieldLabel, { color: t.text }]}>Bepul ishlar soni (hammaga)</Text>
             </View>
             <TextInput
               style={[styles.input, { backgroundColor: t.surfaceMuted, color: t.text }]}
@@ -209,7 +209,7 @@ export default function SettingsScreen() {
               placeholderTextColor={t.textMuted}
             />
             <Text style={[styles.hint, { color: t.textMuted }]}>
-              Yangi ishchi passport seriyasi, firma esa INN bo&apos;yicha shuncha ishni bepul qabul qila oladi.
+              Hamma ishchi va firmaga bir xil: yangilari ham, hozirgilari ham shuncha ishni bepul qabul qila oladi (ishlatganlari hisobdan chiqariladi). Bitta odamga alohida son berish uchun: Odamlar, uning sahifasi, «Tekin ishlar».
             </Text>
           </View>
 
