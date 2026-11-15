@@ -11,7 +11,7 @@ import type { Role, User } from '@/lib/types';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Switch, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ROLE_LABELS } from '@/lib/roles';
 
@@ -453,6 +453,23 @@ export default function UserDetailScreen() {
           />
           <Text style={[styles.userName, { color: t.text }]}>{user.name || 'Ismsiz'}</Text>
           <Text style={[styles.userPhone, { color: t.textMuted }]}>{user.phone}</Text>
+          {/* One tap to reach the person — the office does this all day. */}
+          <View style={styles.reachRow}>
+            <Pressable
+              onPress={() => Linking.openURL(`tel:${user.phone}`).catch(() => {})}
+              style={({ pressed }) => [styles.reach, { backgroundColor: t.successSoft, opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Ionicons name="call" size={16} color={t.success} />
+              <Text style={[styles.reachText, { color: t.success }]}>Qo‘ng‘iroq</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => Linking.openURL(`https://t.me/+${user.phone.replace(/\D/g, '')}`).catch(() => {})}
+              style={({ pressed }) => [styles.reach, { backgroundColor: t.primarySoft, opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Ionicons name="paper-plane" size={16} color={t.primary} />
+              <Text style={[styles.reachText, { color: t.primary }]}>Telegram</Text>
+            </Pressable>
+          </View>
           <View style={styles.rolesRow}>
             {user.roles.map((r) => (
               <View
@@ -1476,6 +1493,9 @@ const styles = StyleSheet.create({
 
   labelField: { gap: 4 },
   fieldLabel: { fontSize: 13, marginBottom: 2 },
+  reachRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  reach: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16 },
+  reachText: { fontSize: 14, fontWeight: '600' },
   input: { height: 44, borderRadius: 8, paddingHorizontal: 14, fontSize: 17 },
   multiline: { height: 80, paddingTop: 12, textAlignVertical: 'top' },
 

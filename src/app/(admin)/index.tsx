@@ -16,7 +16,8 @@ import { useTheme } from '@/hooks/use-theme';
 import { api } from '@/lib/api';
 import { formatSom } from '@/lib/format';
 import { firmAnswers, lastDays, workerDrops } from '@/lib/quality';
-import type { AdminOrder, Analytics, Finance } from '@/lib/types';
+import { buildAttention } from '@/lib/attention';
+import type { AdminOrder, Analytics, CompanyProfile, Finance, User } from '@/lib/types';
 
 /** The window the service numbers are measured over. */
 const QUALITY_DAYS = 30;
@@ -31,21 +32,28 @@ export default function DashboardScreen() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [finance, setFinance] = useState<Finance | null>(null);
   const [recent, setRecent] = useState<AdminOrder[]>([]);
+  const [people, setPeople] = useState<User[]>([]);
+  const [firmList, setFirmList] = useState<CompanyProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async (p: Period, silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [a, f, o] = await Promise.all([
+      const [a, f, o, us, cs] = await Promise.all([
         api.get<Analytics>(`/admin/analytics/orders?period=${p}`),
         api.get<Finance>('/admin/finance'),
         // The service numbers below; their failing must not blank the rest.
         api.get<AdminOrder[]>('/admin/orders?period=month').catch(() => [] as AdminOrder[]),
+        // What needs attention reads people and firms too; each may fail alone.
+        api.get<User[]>('/admin/users').catch(() => [] as User[]),
+        api.get<CompanyProfile[]>('/admin/companies').catch(() => [] as CompanyProfile[]),
       ]);
       setAnalytics(a);
       setFinance(f);
       setRecent(o ?? []);
+      setPeople(us ?? []);
+      setFirmList(cs ?? []);
     } catch { /* ignore */ } finally {
       setLoading(false);
       setRefreshing(false);
@@ -56,6 +64,10 @@ export default function DashboardScreen() {
 
   const onRefresh = () => { setRefreshing(true); load(period, true); };
 
+  const attention = useMemo(
+    () => buildAttention({ orders: recent, users: people, companies: firmList }),
+    [recent, people, firmList],
+  );
   const windowed = useMemo(() => lastDays(recent, QUALITY_DAYS), [recent]);
   const drops = useMemo(() => workerDrops(windowed), [windowed]);
   const firms = useMemo(() => firmAnswers(windowed), [windowed]);
@@ -80,6 +92,61 @@ export default function DashboardScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.primary} />}
       >
         <Text style={[styles.largeTitle, { color: t.text }]}>Boshqaruv paneli</Text>
+
+        {/* What to do today: the first thing the office should see. */}
+        <View style={[styles.section, { backgroundColor: t.surface }]}>
+          <Text style={[styles.sectionTitle, { color: t.text }]}>Diqqat talab qiladi</Text>
+          {attention.length === 0 ? (
+            <View style={styles.okRow}>
+              <Ionicons name="checkmark-circle" size={20} color={t.success} />
+              <Text style={[styles.emptyLine, { color: t.textMuted, paddingVertical: 0 }]}>
+                Hammasi joyida — hozir hech narsa kutayotgani yo‘q
+              </Text>
+            </View>
+          ) : (
+            attention.map((item, i) => {
+              const tone = item.tint === 'danger' ? [t.dangerSoft, t.danger] : item.tint === 'warning' ? [t.warningSoft, t.warning] : [t.primarySoft, t.primary];
+              return (
+                <Pressable
+                  key={item.key}
+                  onPress={() => router.push({ pathname: item.route, params: item.params } as any)}
+                  style={({ pressed }) => [
+                    styles.attnRow,
+                    i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.borderLight },
+                    pressed && { opacity: 0.6 },
+                  ]}
+                >
+                  <View style={[styles.attnCount, { backgroundColor: tone[0] }]}>
+                    <Text style={[styles.attnCountText, { color: tone[1] }]}>{item.count}</Text>
+                  </View>
+                  <View style={{ flex: 1, gap: 1 }}>
+                    <Text style={[styles.attnTitle, { color: t.text }]}>{item.title}</Text>
+                    <Text style={[styles.attnHint, { color: t.textMuted }]}>{item.hint}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={t.textMuted} />
+                </Pressable>
+              );
+            })
+          )}
+        </View>
+
+        {/* The three things done most often, one tap each. */}
+        <View style={styles.quickRow}>
+          {[
+            { label: 'Xabar yuborish', icon: 'megaphone' as const, href: '/(admin)/broadcast' },
+            { label: 'Tekin ishlar', icon: 'gift' as const, href: '/(admin)/settings' },
+            { label: 'Reyting', icon: 'trophy' as const, href: '/(admin)/leaderboard' },
+          ].map((q) => (
+            <Pressable
+              key={q.label}
+              onPress={() => router.push(q.href as any)}
+              style={({ pressed }) => [styles.quick, { backgroundColor: t.surface, opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Ionicons name={q.icon} size={22} color={t.primary} />
+              <Text style={[styles.quickText, { color: t.text }]} numberOfLines={1}>{q.label}</Text>
+            </Pressable>
+          ))}
+        </View>
 
         {/* Who is online and where — its own screen, opened from here. */}
         <Pressable
@@ -298,6 +365,15 @@ function StatCard({ icon, label, value, bg, fg }: { icon: string; label: string;
 }
 
 const styles = StyleSheet.create({
+  okRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  attnRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  attnCount: { minWidth: 36, height: 36, paddingHorizontal: 8, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  attnCountText: { fontSize: 16, fontWeight: '700' },
+  attnTitle: { fontSize: 15, fontWeight: '600' },
+  attnHint: { fontSize: 13 },
+  quickRow: { flexDirection: 'row', gap: 10 },
+  quick: { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: 'center', gap: 6 },
+  quickText: { fontSize: 12, fontWeight: '600' },
   root: { flex: 1 },
   scroll: { padding: 16 },
   largeTitle: { fontSize: 34, fontWeight: '700', marginBottom: 16 },
