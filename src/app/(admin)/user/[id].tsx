@@ -1,3 +1,4 @@
+import { FreeOrdersEditor } from '@/components/free-orders-editor';
 import { Text, TextInput } from '@/components/text';
 import { KeyboardAwareScrollView } from '@/components/ui/keyboard-aware-scroll-view';
 import { PhotoCircle, PhotoRow } from '@/components/ui/photo';
@@ -830,6 +831,14 @@ export default function UserDetailScreen() {
                   </Text>
                 </Pressable>
 
+                <FreeOrdersEditor
+                  userId={id}
+                  role="company"
+                  used={cp.free_orders_used}
+                  limit={cp.free_orders_limit}
+                  onChanged={load}
+                />
+
                 <Pressable
                   style={({ pressed }) => [
                     styles.btn,
@@ -1124,6 +1133,14 @@ export default function UserDetailScreen() {
                 >
                   <Text style={[styles.btnText, { color: t.text }]}>Bepul ishlarni tiklash</Text>
                 </Pressable>
+
+                <FreeOrdersEditor
+                  userId={id}
+                  role="worker"
+                  used={wp.free_orders_used}
+                  limit={wp.free_orders_limit}
+                  onChanged={load}
+                />
 
                 <Divider color={t.borderLight} />
                 <Text style={[styles.fieldLabel, { color: t.textMuted }]}>Kredit limit</Text>
