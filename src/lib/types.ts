@@ -325,6 +325,8 @@ export interface Finance {
 
 export interface Settings {
   commission_percent: number;
+  /** flat fee per job in so'm; replaces the percentage when above zero */
+  commission_fixed?: number;
   min_balance: number;
   /** how many jobs a new worker or firm may accept before the money rules apply */
   free_order_limit: number;

@@ -23,6 +23,9 @@ export default function SettingsScreen() {
   const bottomInset = useTabContentInset();
   const { signOut, user } = useAuth();
   const [commission, setCommission] = useState('');
+  // The flat fee per job, in so'm. When above zero it is what is taken; the
+  // percentage below only applies if this is 0.
+  const [commissionFixed, setCommissionFixed] = useState('');
   const [minBalance, setMinBalance] = useState('');
   // How many jobs a brand-new provider gets for nothing, and how much notice a
   // firm gets before its subscription lapses.
@@ -58,6 +61,7 @@ export default function SettingsScreen() {
       // blank and then be saved as blank.
       const res = await api.get<Settings>('/admin/settings');
       setCommission(res.commission_percent?.toString() ?? '');
+      setCommissionFixed(res.commission_fixed?.toString() ?? '');
       setMinBalance(res.min_balance?.toString() ?? '');
       setFreeOrders(res.free_order_limit?.toString() ?? '');
       setWarnDays(res.subscription_warn_days?.toString() ?? '');
@@ -82,6 +86,7 @@ export default function SettingsScreen() {
     try {
       const body: Record<string, number | string> = {};
       if (commission) body.commission_percent = parseFloat(commission);
+      if (commissionFixed !== '') body.commission_fixed = parseInt(commissionFixed, 10) || 0;
       if (minBalance) body.min_balance = parseFloat(minBalance);
       // Zero is a real value for both ("no free jobs", "no notice"), so they are
       // sent whenever the field has anything in it at all.
@@ -163,8 +168,30 @@ export default function SettingsScreen() {
         <View style={[styles.section, { backgroundColor: t.surface }]}>
           <View style={styles.field}>
             <View style={styles.fieldRow}>
+              <Ionicons name="cash-outline" size={20} color={t.primary} />
+              <Text style={[styles.fieldLabel, { color: t.text }]}>
+                Har ishdan olinadigan summa (so'm)
+              </Text>
+            </View>
+            <TextInput
+              style={[styles.input, { backgroundColor: t.surfaceMuted, color: t.text }]}
+              value={commissionFixed}
+              onChangeText={(v) => setCommissionFixed(v.replace(/\D/g, ''))}
+              keyboardType="number-pad"
+              placeholder="10000"
+              placeholderTextColor={t.textMuted}
+            />
+            <Text style={[styles.fieldHint, { color: t.textMuted }]}>
+              0 yozsangiz, pastdagi foiz ishlaydi.
+            </Text>
+          </View>
+
+          <View style={[styles.divider, { backgroundColor: t.borderLight }]} />
+
+          <View style={styles.field}>
+            <View style={styles.fieldRow}>
               <Ionicons name="calculator-outline" size={20} color={t.primary} />
-              <Text style={[styles.fieldLabel, { color: t.text }]}>Komissiya (%)</Text>
+              <Text style={[styles.fieldLabel, { color: t.text }]}>Komissiya (%) — faqat summa 0 bo'lsa</Text>
             </View>
             <TextInput
               style={[styles.input, { backgroundColor: t.surfaceMuted, color: t.text }]}
@@ -462,6 +489,7 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  fieldHint: { fontSize: 12, marginTop: 6 },
   scroll: { padding: 16 },
   largeTitle: { fontSize: 34, fontWeight: '700', marginBottom: 20 },
   sectionHeader: { fontSize: 13, fontWeight: '600', marginBottom: 8, marginLeft: 16 },
