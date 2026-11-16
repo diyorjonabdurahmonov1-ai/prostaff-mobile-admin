@@ -65,7 +65,6 @@ export default function UserDetailScreen() {
   const [workerGender, setWorkerGender] = useState<'male' | 'female'>('male');
   const [workerAge, setWorkerAge] = useState('25');
   const [workerPriceMin, setWorkerPriceMin] = useState('50000');
-  const [workerPriceMax, setWorkerPriceMax] = useState('150000');
   const [workerOnline, setWorkerOnline] = useState(true);
   const [creatingWorker, setCreatingWorker] = useState(false);
   // Edit mode for existing worker
@@ -77,7 +76,6 @@ export default function UserDetailScreen() {
   const [editWkGender, setEditWkGender] = useState<'male' | 'female'>('male');
   const [editWkAge, setEditWkAge] = useState('');
   const [editWkPriceMin, setEditWkPriceMin] = useState('');
-  const [editWkPriceMax, setEditWkPriceMax] = useState('');
   const [savingWorker, setSavingWorker] = useState(false);
 
   const load = useCallback(async () => {
@@ -106,7 +104,6 @@ export default function UserDetailScreen() {
           setEditWkGender(found.worker_profile.gender === 'female' ? 'female' : 'male');
           setEditWkAge(found.worker_profile.age.toString());
           setEditWkPriceMin(found.worker_profile.price_min.toString());
-          setEditWkPriceMax(found.worker_profile.price_max.toString());
         }
       }
     } catch {
@@ -301,7 +298,7 @@ export default function UserDetailScreen() {
         gender: workerGender,
         age: parseInt(workerAge) || 25,
         price_min: parseInt(workerPriceMin) || 50000,
-        price_max: parseInt(workerPriceMax) || 150000,
+        price_max: 0,
         lat: 41.2995,
         lng: 69.2401,
         category_ids: [],
@@ -333,7 +330,6 @@ export default function UserDetailScreen() {
         gender: editWkGender,
         age: parseInt(editWkAge) || undefined,
         price_min: parseInt(editWkPriceMin) || undefined,
-        price_max: parseInt(editWkPriceMax) || undefined,
       });
       Alert.alert('Muvaffaqiyat', 'Ishchi profili yangilandi');
       setEditingWorker(false);
@@ -1002,13 +998,6 @@ export default function UserDetailScreen() {
                   theme={t}
                   keyboard="decimal-pad"
                 />
-                <LabelInput
-                  label="Max Narx (so'm)"
-                  value={editWkPriceMax}
-                  onChangeText={setEditWkPriceMax}
-                  theme={t}
-                  keyboard="decimal-pad"
-                />
                 <View
                   style={{ flexDirection: 'row', gap: 12, alignItems: 'center', marginVertical: 4 }}
                 >
@@ -1104,7 +1093,7 @@ export default function UserDetailScreen() {
                 <InfoRow
                   icon="cash"
                   label="Narx"
-                  value={`${formatSom(wp.price_min)} – ${formatSom(wp.price_max)}`}
+                  value={formatSom(wp.price_min)}
                   theme={t}
                 />
                 <Divider color={t.borderLight} />
@@ -1247,13 +1236,6 @@ export default function UserDetailScreen() {
                     label="Min Narx (so'm)"
                     value={workerPriceMin}
                     onChangeText={setWorkerPriceMin}
-                    theme={t}
-                    keyboard="decimal-pad"
-                  />
-                  <LabelInput
-                    label="Max Narx (so'm)"
-                    value={workerPriceMax}
-                    onChangeText={setWorkerPriceMax}
                     theme={t}
                     keyboard="decimal-pad"
                   />
