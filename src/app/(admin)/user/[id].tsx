@@ -1,3 +1,4 @@
+import { CategoryPicker } from '@/components/category-picker';
 import { FreeOrdersEditor } from '@/components/free-orders-editor';
 import { Text, TextInput } from '@/components/text';
 import { KeyboardAwareScrollView } from '@/components/ui/keyboard-aware-scroll-view';
@@ -58,6 +59,10 @@ export default function UserDetailScreen() {
 
   // ───── Worker Profile ─────
   const [showWorkerForm, setShowWorkerForm] = useState(false);
+  // The services the worker does — a worker with none can never be rung, so the
+  // server will not save one.
+  const [workerCats, setWorkerCats] = useState<string[]>([]);
+  const [editWkCats, setEditWkCats] = useState<string[]>([]);
   const [workerFullName, setWorkerFullName] = useState('');
   // The worker's passport series — required, unique, and the key their three
   // free jobs hang off.
@@ -104,6 +109,7 @@ export default function UserDetailScreen() {
           setEditWkGender(found.worker_profile.gender === 'female' ? 'female' : 'male');
           setEditWkAge(found.worker_profile.age.toString());
           setEditWkPriceMin(found.worker_profile.price_min.toString());
+          setEditWkCats(found.worker_profile.category_ids ?? []);
         }
       }
     } catch {
@@ -287,6 +293,10 @@ export default function UserDetailScreen() {
       Alert.alert('Xatolik', "Passport seriyasini to'g'ri kiriting. Namuna: AA1234567");
       return;
     }
+    if (workerCats.length === 0) {
+      Alert.alert('Xizmat turi kerak', 'Kamida bitta xizmat turini tanlang, shundagina buyurtmalar kela boshlaydi.');
+      return;
+    }
     setCreatingWorker(true);
     try {
       await api.post('/admin/workers', {
@@ -301,7 +311,7 @@ export default function UserDetailScreen() {
         price_max: 0,
         lat: 41.2995,
         lng: 69.2401,
-        category_ids: [],
+        category_ids: workerCats,
         credit_limit: 0,
         online: workerOnline,
       });
@@ -322,6 +332,10 @@ export default function UserDetailScreen() {
   const saveWorkerEdit = async () => {
     const wp = user?.worker_profile;
     if (!wp) return;
+    if (editWkCats.length === 0) {
+      Alert.alert('Xizmat turi kerak', 'Kamida bitta xizmat turini tanlang.');
+      return;
+    }
     setSavingWorker(true);
     try {
       await api.patch(`/admin/workers/${wp.id}`, {
@@ -330,6 +344,7 @@ export default function UserDetailScreen() {
         gender: editWkGender,
         age: parseInt(editWkAge) || undefined,
         price_min: parseInt(editWkPriceMin) || undefined,
+        category_ids: editWkCats,
       });
       Alert.alert('Muvaffaqiyat', 'Ishchi profili yangilandi');
       setEditingWorker(false);
@@ -998,6 +1013,7 @@ export default function UserDetailScreen() {
                   theme={t}
                   keyboard="decimal-pad"
                 />
+                <CategoryPicker selected={editWkCats} onChange={setEditWkCats} />
                 <View
                   style={{ flexDirection: 'row', gap: 12, alignItems: 'center', marginVertical: 4 }}
                 >
@@ -1239,6 +1255,7 @@ export default function UserDetailScreen() {
                     theme={t}
                     keyboard="decimal-pad"
                   />
+                  <CategoryPicker selected={workerCats} onChange={setWorkerCats} />
                   <View
                     style={{
                       flexDirection: 'row',
