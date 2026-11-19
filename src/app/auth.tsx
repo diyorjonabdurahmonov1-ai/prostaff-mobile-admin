@@ -40,7 +40,9 @@ export default function AuthScreen() {
         behavior="padding"
       >
         <View style={styles.iconWrap}>
-          <Ionicons name="shield-checkmark" size={56} color={t.primary} />
+          <View style={[styles.logoTile, { backgroundColor: t.primary }]}>
+            <Ionicons name="shield-checkmark" size={40} color={t.onPrimary} />
+          </View>
         </View>
         <Text style={[styles.title, { color: t.text }]}>PROSTAFF Admin</Text>
         <Text style={[styles.subtitle, { color: t.textMuted }]}>
@@ -137,11 +139,18 @@ const styles = StyleSheet.create({
   },
   iconWrap: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
+  },
+  logoTile: {
+    width: 84,
+    height: 84,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
-    fontSize: 28,
-    fontWeight: '600',
+    fontSize: 30,
+    fontWeight: '700',
     textAlign: 'center',
     marginBottom: 4,
   },
@@ -161,8 +170,8 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   input: {
-    height: 50,
-    borderRadius: 10,
+    height: 52,
+    borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 16,
     fontSize: 17,
@@ -178,8 +187,8 @@ const styles = StyleSheet.create({
     height: 50,
   },
   button: {
-    height: 50,
-    borderRadius: 10,
+    height: 52,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 24,
